@@ -1,2 +1,2 @@
 # machine-learning
- <a href="TechSavvySadie.substack.com"> Read my blog!</a>
+ <a href="https://TechSavvySadie.substack.com" target="_blank"> Read my blog!</a>
