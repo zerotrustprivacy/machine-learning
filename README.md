@@ -1,3 +1,3 @@
 # machine-learning
- <a href="https://TechSavvySadie.substack.com" target="_blank"> Read my blog!</a>
-<div class="substack-post-embed"><p lang="en">Building Data Pipelines in GCP for Model Training by Sadie</p><p></p><a data-post-link href="https://techsavvysadie.substack.com/p/building-data-pipelines-in-gcp-for"></a></div>
+ <a href="https://open.substack.com/pub/techsavvysadie/p/building-data-pipelines-in-gcp-for?r=573b3l&utm_campaign=post&utm_medium=web&showWelcomeOnShare=false" target="_blank"> Read my blog!</a>
+
