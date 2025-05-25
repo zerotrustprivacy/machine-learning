@@ -1,0 +1,102 @@
+# cloudbuild.yaml
+steps:
+# Step 1: Build the Docker image
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Build Image'
+  args:
+    - 'build'
+    - '-t'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/your-artifact-repo/model-serving-app:$COMMIT_SHA' # <--- UPDATE 'your-artifact-repo'
+    - '.'
+
+# Step 2: Push the Docker image to Artifact Registry
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Push Image'
+  args:
+    - 'push'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/your-artifact-repo/model-serving-app:$COMMIT_SHA' # <--- UPDATE 'your-artifact-repo'
+
+# Step 3: Deploy the model to Vertex AI Endpoints (requires existing model registration)
+# This step assumes you have already registered your trained model in Vertex AI Model Registry from your training pipeline.
+# We are deploying the model from the Model Registry using the built container image.
+# You need to replace 'your-model-id' and 'your-endpoint-id' with actual IDs
+# OR simplify to create a new endpoint if it's the first deployment.
+
+# Define endpoint and model names
+# You might want to pass these as variables or define fixed names.
+# For simplicity, let's assume you'll create a new endpoint or update an existing one.
+# For a first deployment, you might create a new endpoint.
+# For subsequent deployments, you'd update the deployed model.
+
+# Option A (Simpler, first deployment): Create a new endpoint and deploy model to it
+# This will create a new endpoint every time, which isn't ideal for CI/CD
+# You'd typically update an existing endpoint.
+
+# Option B (More robust CI/CD): Update an existing endpoint
+# This requires you to have an existing endpoint and a model already registered in Vertex AI Model Registry.
+# The model will typically be versioned in the Model Registry.
+
+# Let's use a simpler deployment that creates a new endpoint if it doesn't exist.
+# For continuous deployment, you'd usually update an existing one.
+
+# --- Simplified Deployment to Vertex AI ---
+# This assumes your model is already registered in Vertex AI Model Registry (e.g., from your training script)
+# and you want to create or update a deployed model on an existing endpoint.
+
+# IMPORTANT: Replace 'your-model-name' and 'your-endpoint-name'
+# It's better to fetch these dynamically or define them as variables.
+# For a first try, you can hardcode them and ensure they exist.
+
+# Create a unique deployed model ID based on the commit SHA for easier tracking
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: 'Deploy Model to Endpoint'
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      set -eux
+      PROJECT_ID=$(gcloud config get-value project)
+      REGION='us-central1' # Make sure this matches your region
+      MODEL_ID='your-model-name-in-vertex-ai-registry' # The ID of the model registered in Vertex AI Model Registry (not the container image) <--- UPDATE THIS!
+      ENDPOINT_NAME='your-endpoint-name-in-vertex-ai' # The name of your existing endpoint <--- UPDATE THIS!
+      
+      # Step 1: Ensure the model version exists and is linked to the image
+      # This step requires the model to be uploaded/registered in Vertex AI Model Registry
+      # from your training script.
+      # The `gcloud ai models upload` command would register a new model or version.
+      # For now, let's assume `MODEL_ID` is an existing registered model.
+      
+      # We need to get the Model resource ID (numeric ID)
+      MODEL_RESOURCE_ID=$(gcloud ai models list --project=$PROJECT_ID --region=$REGION --filter="displayName=$MODEL_ID" --format="value(name.segment(3))")
+      
+      if [ -z "$MODEL_RESOURCE_ID" ]; then
+        echo "Error: Model '$MODEL_ID' not found in Vertex AI Model Registry. Please register it first."
+        exit 1
+      fi
+      
+      # Check if endpoint exists, if not, create it
+      ENDPOINT_RESOURCE_ID=$(gcloud ai endpoints list --project=$PROJECT_ID --region=$REGION --filter="displayName=$ENDPOINT_NAME" --format="value(name.segment(3))")
+      
+      if [ -z "$ENDPOINT_RESOURCE_ID" ]; then
+        echo "Endpoint '$ENDPOINT_NAME' not found. Creating it..."
+        ENDPOINT_CREATE_OUTPUT=$(gcloud ai endpoints create --display-name=$ENDPOINT_NAME --project=$PROJECT_ID --region=$REGION --format="json")
+        ENDPOINT_RESOURCE_ID=$(echo $ENDPOINT_CREATE_OUTPUT | jq -r '.name' | awk -F'/' '{print $NF}')
+        echo "Created new endpoint with ID: $ENDPOINT_RESOURCE_ID"
+      else
+        echo "Using existing endpoint with ID: $ENDPOINT_RESOURCE_ID"
+      fi
+      
+      # Deploy the new model version (using the image built in Step 1) to the endpoint
+      # You can replace 1 with desired traffic split percentage
+      gcloud ai endpoints deploy-model $ENDPOINT_RESOURCE_ID \
+        --model=$MODEL_RESOURCE_ID \
+        --display-name="serving-model-$COMMIT_SHA" \
+        --container-image="us-central1-docker.pkg.dev/$PROJECT_ID/your-artifact-repo/model-serving-app:$COMMIT_SHA" \
+        --container-env-vars=GCS_MODEL_PATH=${GCS_MODEL_PATH} \
+        --machine-type=n1-standard-2 \
+        --traffic-split=0=100 \
+        --project=$PROJECT_ID \
+        --region=$REGION \
+        --service-account="[YOUR_VERTEX_AI_SERVICE_ACCOUNT_EMAIL]" # <--- IMPORTANT: REPLACE THIS!
+                                                                  # Usually like [PROJECT_NUMBER]-compute@developer.gserviceaccount.com
+                                                                  # Or create a dedicated service account for Vertex AI Predictions.
