@@ -1,108 +1,109 @@
-#  Python script for training an ML model using the processed data from Cloud Storage. This script runs as a training job 
 import argparse
 import pandas as pd
 import os
-import joblib # Or import pickle as joblib
+import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier # Example model
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-# Define command-line arguments
+# --- MLflow Import ---
+import mlflow
+import mlflow.sklearn # This helps MLflow log scikit-learn models automatically
+
+# Define command-line arguments (keep these from your existing script)
 parser = argparse.ArgumentParser()
 parser.add_argument('--input-data-path', type=str, required=True,
-                    help='Cloud Storage or local path to the processed input data (CSV file).')
-parser.add_argument('--model-output-dir', type=str, required=True,
-                    help='Cloud Storage or local directory to save the trained model.')
+                    help='Path to the processed input data (CSV file).')
+parser.add_argument('--model-output-dir', type=str, default='./mlruns/model_output',
+                    help='Local directory to save the trained model for MLflow tracking.') # Default for local
+parser.add_argument('--n_estimators', type=int, default=100,
+                    help='Number of trees in the random forest.') # Example hyperparameter
+parser.add_argument('--random_state', type=int, default=42,
+                    help='Random state for reproducibility.') # Example hyperparameter
 
 args = parser.parse_args()
 
-# --- 1. Load the processed data ---
-print(f"Loading data from: {args.input_data_path}")
-try:
-    # pandas can read directly from gs:// paths if google-cloud-storage is installed
-    processed_data_df = pd.read_csv(args.input_data_path)
-    print("Data loaded successfully.")
-    print(f"Data shape: {processed_data_df.shape}")
-    print("Data columns:", processed_data_df.columns.tolist())
-except Exception as e:
-    print(f"Error loading data: {e}")
-    exit()
+# --- MLflow Setup ---
+# Set an experiment name to group related runs
+mlflow.set_experiment("Patient_Outcome_Prediction_Experiment")
 
-# --- 2. Separate features (X) and target (y) ---
-# IMPORTANT: Replace 'outcome' with the actual name of your target column
-# IMPORTANT: List your actual feature columns or drop the target column
-TARGET_COLUMN = 'outcome' # <--- REPLACE WITH YOUR TARGET COLUMN NAME
+# Start an MLflow run. All subsequent MLflow calls will be associated with this run.
+# 'with mlflow.start_run():' ensures the run is properly closed even if errors occur.
+with mlflow.start_run():
+    # --- Log Parameters ---
+    mlflow.log_param("input_data_path", args.input_data_path)
+    mlflow.log_param("n_estimators", args.n_estimators)
+    mlflow.log_param("random_state", args.random_state)
+    mlflow.log_param("test_size", 0.2) # Log fixed split size
 
-if TARGET_COLUMN not in processed_data_df.columns:
-     print(f"Error: Target column '{TARGET_COLUMN}' not found in the data.")
-     exit()
+    # --- 1. Load the processed data ---
+    print(f"Loading data from: {args.input_data_path}")
+    try:
+        processed_data_df = pd.read_csv(args.input_data_path)
+        print("Data loaded successfully.")
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        exit()
 
-y = processed_data_df[TARGET_COLUMN]
-X = processed_data_df.drop(columns=[TARGET_COLUMN])
+    # --- 2. Separate features (X) and target (y) ---
+    TARGET_COLUMN = 'outcome' # <--- REPLACE WITH YOUR ACTUAL TARGET COLUMN NAME
 
-# --- IMPORTANT: Apply any final preprocessing if needed ---
-# If your Dataflow pipeline didn't do all preprocessing (e.g., one-hot encoding
-# for the model), do it here. Ensure columns match what your chosen model expects.
-# Example: X = pd.get_dummies(X, columns=['categorical_column'])
+    if TARGET_COLUMN not in processed_data_df.columns:
+         print(f"Error: Target column '{TARGET_COLUMN}' not found in the data.")
+         exit()
 
+    y = processed_data_df[TARGET_COLUMN]
+    X = processed_data_df.drop(columns=[TARGET_COLUMN])
 
-print(f"Features shape: {X.shape}")
-print(f"Target shape: {y.shape}")
+    # Ensure consistent columns for X based on your original training features
+    # (Important if you apply one-hot encoding or other dynamic preprocessing)
+    # If your preprocessing creates new columns, you'll need to save/load
+    # the list of expected columns or a preprocessing pipeline.
+    # For now, we assume X has the right columns after reading the processed CSV.
 
-
-# --- 3. Split data into training and testing sets ---
-# Using a fixed random_state for reproducibility
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y) # stratify for classification
-
-print(f"Train data shape: {X_train.shape}")
-print(f"Test data shape: {X_test.shape}")
-
-
-# --- 4. Choose and train an ML model ---
-print("Training model...")
-# You can replace RandomForestClassifier with another scikit-learn model
-# or code for a TensorFlow/PyTorch model
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-
-model.fit(X_train, y_train)
-print("Model training complete.")
+    # --- 3. Split data into training and testing sets ---
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=args.random_state, stratify=y)
 
 
-# --- 5. Evaluate the model ---
-print("Evaluating model...")
-y_pred = model.predict(X_test)
-
-accuracy = accuracy_score(y_test, y_pred)
-precision = precision_score(y_test, y_pred) # Adjust average if needed
-recall = recall_score(y_test, y_pred)     # Adjust average if needed
-f1 = f1_score(y_test, y_pred)           # Adjust average if needed
-
-print("\n--- Model Evaluation ---")
-print(f"Accuracy: {accuracy:.4f}")
-print(f"Precision: {precision:.4f}")
-print(f"Recall: {recall:.4f}")
-print(f"F1 Score: {f1:.4f}")
-print("------------------------")
+    # --- 4. Choose and train an ML model ---
+    print("Training model...")
+    model = RandomForestClassifier(n_estimators=args.n_estimators, random_state=args.random_state)
+    model.fit(X_train, y_train)
+    print("Model training complete.")
 
 
-# --- 6. Save the trained model ---
-# Vertex AI expects model artifacts to be saved to the GCS path provided
-# in the model_output_dir argument.
-model_filename = 'model.pkl' # Or 'model.joblib'
-model_path = os.path.join(args.model_output_dir, model_filename)
+    # --- 5. Evaluate the model ---
+    print("Evaluating model...")
+    y_pred = model.predict(X_test)
 
-print(f"Saving model to: {model_path}")
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
 
-try:
-    # Ensure the directory exists if saving locally during testing
-    if not model_path.startswith('gs://'):
-        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    print("\n--- Model Evaluation ---")
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"F1 Score: {f1:.4f}")
+    print("------------------------")
 
-    # joblib can save directly to gs:// paths
-    joblib.dump(model, model_path)
-    print("Model saved successfully.")
-except Exception as e:
-    print(f"Error saving model: {e}")
+    # --- Log Metrics ---
+    mlflow.log_metric("accuracy", accuracy)
+    mlflow.log_metric("precision", precision)
+    mlflow.log_metric("recall", recall)
+    mlflow.log_metric("f1_score", f1)
 
+    # --- 6. Save the trained model with MLflow ---
+    # MLflow automatically saves the model under the run's artifact URI
+    # and tracks its dependencies.
+    # 'sklearn_model' is a flavor for scikit-learn models.
+    mlflow.sklearn.log_model(
+        sk_model=model,
+        artifact_path="patient_outcome_model", # Name of the folder where the model will be saved
+        registered_model_name="PatientOutcomePredictor" # Name to register the model in MLflow Model Registry
+    )
+    print(f"Model saved to MLflow artifacts path.")
+    print(f"Run ID: {mlflow.active_run().info.run_id}")
 
-print("\nTraining script finished.")
+print("\nMLflow training script finished.")
