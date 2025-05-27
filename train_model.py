@@ -10,7 +10,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import mlflow
 import mlflow.sklearn # This helps MLflow log scikit-learn models automatically
 
-# Define command-line arguments (keep these from your existing script)
+# Define command-line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--input-data-path', type=str, required=True,
                     help='Path to the processed input data (CSV file).')
@@ -27,8 +27,7 @@ args = parser.parse_args()
 # Set an experiment name to group related runs
 mlflow.set_experiment("Patient_Outcome_Prediction_Experiment")
 
-# Start an MLflow run. All subsequent MLflow calls will be associated with this run.
-# 'with mlflow.start_run():' ensures the run is properly closed even if errors occur.
+# MLflow run
 with mlflow.start_run():
     # --- Log Parameters ---
     mlflow.log_param("input_data_path", args.input_data_path)
@@ -48,9 +47,6 @@ with mlflow.start_run():
         exit()
 
     # --- 2. Separate features (X) and target (y) ---
-    # IMPORTANT: Confirm 'Test Results' is your actual target column name from your CSV header.
-    # Based on your previous output, 'Test Results' is a column with values like 'Normal', 'Abnormal',
-    # which is likely a categorical target.
     TARGET_COLUMN = 'Test Results'
 
     if TARGET_COLUMN not in processed_data_df.columns:
@@ -61,16 +57,13 @@ with mlflow.start_run():
 
     # --- Define Column Types and Actions ---
     # These lists are based on your CSV headers and typical data handling.
-    # ADJUST THESE LISTS CAREFULLY BASED ON YOUR DECISIONS FOR EACH COLUMN!
 
-    # Columns to explicitly drop from features (e.g., identifiers, irrelevant text fields)
+    # Columns to explicitly drop from features
     DROP_COLS = [
         'Name',
         'Doctor',
         'Date of Admission',
         'Discharge Date',
-        # Add 'Hospital', 'Insurance Provider', 'Medical Condition', 'Medication', 'Admission Type', 'Blood Type' if you decide not to use them as categorical features
-        # If 'Room Number' is a unique identifier string, you might drop it too.
     ]
 
     # Columns that should be numerical features (will be converted to float)
@@ -86,7 +79,6 @@ with mlflow.start_run():
         'Insurance Provider',
         'Admission Type',
         'Medication'
-        # Add any other string columns you want to keep as categorical features
     ]
 
 
@@ -113,7 +105,6 @@ with mlflow.start_run():
 
     # --- Handle Categorical Columns (One-Hot Encoding) ---
     # Identify remaining 'object' columns *after* dropping and numeric conversion.
-    # These are the ones we want to one-hot encode.
     categorical_cols_to_encode = X.select_dtypes(include='object').columns.tolist()
     
     # Filter to only include those we specifically defined as categorical features
@@ -124,7 +115,7 @@ with mlflow.start_run():
 
     if categorical_cols_to_encode:
         # Apply one-hot encoding
-        X = pd.get_dummies(X, columns=categorical_cols_to_encode, drop_first=True) # drop_first=True avoids multicollinearity
+        X = pd.get_dummies(X, columns=categorical_cols_to_encode, drop_first=True) # drop_first=True
         print("Categorical columns one-hot encoded.")
     else:
         print("No categorical (object) columns found in X to one-hot encode.")
@@ -148,7 +139,7 @@ with mlflow.start_run():
 
 
     # --- 3. Split data into training and testing sets ---
-    # Re-introducing stratify=y if your target column is suitable (more than 1 sample per class)
+    # stratify=y if your target column is suitable (more than 1 sample per class)
     # If you get the "least populated class" error again, remove stratify=y
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=args.random_state, stratify=y)
 
