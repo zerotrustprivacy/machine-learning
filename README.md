@@ -16,5 +16,17 @@
 <li>BigQuery: As the real-time analytics data warehouse where your processed data will be stored.</li>
  </ul>
 </p>
+<p>Install Python 3 and the necessary libraries into the environment</p>
+pip install apache-beam[gcp] google-cloud-pubsub google-cloud-bigquery pandas
+<p>Create Pub/Sub Topic, Subscription</p>
+gcloud pubsub topics create telemetry-data-stream --project YOUR_GCP_PROJECT_ID
+gcloud pubsub subscriptions create telemetry-data-stream-sub \
+  --topic telemetry-data-stream \
+  --ack-deadline=600 \
+  --message-retention-duration=7d \
+  --project YOUR_GCP_PROJECT_ID
+<p>Create Big Query Dataset to house tables</p>
+gcloud bq mk --location=us-central1 YOUR_GCP_PROJECT_ID:telemetry_analytics
+<p>Create a JSON file with the telemetry schema</p>
 
 
