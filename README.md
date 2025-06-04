@@ -4,5 +4,8 @@
 
  ![image](https://github.com/user-attachments/assets/43c0a157-0fc7-4f99-931f-0cf5bf3ebd93)
  https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning?_gl=1*1bi51db*_ga*MTkwNTUzNzY2OS4xNzQzOTY3NTcy*_ga_WH2QY8WWF5*czE3NDgyMjUzNDYkbzI1JGcxJHQxNzQ4MjI2MTE0JGo2MCRsMCRoMCRkQkZuSGQ4bGJRMFVhZXJhd3dFSkZSRktqSDhNVUFWNl9KUQ..#mlops_level_1_ml_pipeline_automation
+ #
+ # Real Time Data Streaming and Analysis
+ ## Building a pipeline that continuously ingests simulated patient telemetry data, processes it in real-time (e.g., aggregates metrics over short intervals), and lands the aggregated data into BigQuery for immediate analysis.
 
 
