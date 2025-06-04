@@ -7,5 +7,14 @@
  #
  # Real Time Data Streaming and Analysis
  ## Building a pipeline that continuously ingests simulated patient telemetry data, processes it in real-time (e.g., aggregates metrics over short intervals), and lands the aggregated data into BigQuery for immediate analysis.
+<p>
+ <ul>
+  <p>GCP Services Used:</p>
+
+<li>Cloud Pub/Sub </li>
+<li>Cloud Dataflow (Streaming Mode)</li>
+<li>BigQuery: As the real-time analytics data warehouse where your processed data will be stored.</li>
+ </ul>
+</p>
 
 
